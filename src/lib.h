@@ -25,6 +25,9 @@
 })
 #endif
 
+enum {
+	IORING_INT_FLAG_APP_MEM		= 1,
+};
 
 static inline long get_page_size(void)
 {

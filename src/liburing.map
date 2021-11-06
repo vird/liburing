@@ -48,4 +48,5 @@ LIBURING_2.1 {
 LIBURING_2.2 {
 	global:
 		io_uring_submit_and_wait_timeout;
+		io_uring_queue_init_mem;
 } LIBURING_2.1;
