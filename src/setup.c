@@ -7,12 +7,33 @@
 #include "liburing/compat.h"
 #include "liburing/io_uring.h"
 
-
 static void io_uring_unmap_rings(struct io_uring_sq *sq, struct io_uring_cq *cq)
 {
 	uring_munmap(sq->ring_ptr, sq->ring_sz);
 	if (cq->ring_ptr && cq->ring_ptr != sq->ring_ptr)
 		uring_munmap(cq->ring_ptr, cq->ring_sz);
+}
+
+static void io_uring_setup_ring_pointers(struct io_uring_params *p,
+					 struct io_uring_sq *sq,
+					 struct io_uring_cq *cq)
+{
+	sq->khead = sq->ring_ptr + p->sq_off.head;
+	sq->ktail = sq->ring_ptr + p->sq_off.tail;
+	sq->kring_mask = sq->ring_ptr + p->sq_off.ring_mask;
+	sq->kring_entries = sq->ring_ptr + p->sq_off.ring_entries;
+	sq->kflags = sq->ring_ptr + p->sq_off.flags;
+	sq->kdropped = sq->ring_ptr + p->sq_off.dropped;
+	sq->array = sq->ring_ptr + p->sq_off.array;
+
+	cq->khead = cq->ring_ptr + p->cq_off.head;
+	cq->ktail = cq->ring_ptr + p->cq_off.tail;
+	cq->kring_mask = cq->ring_ptr + p->cq_off.ring_mask;
+	cq->kring_entries = cq->ring_ptr + p->cq_off.ring_entries;
+	cq->koverflow = cq->ring_ptr + p->cq_off.overflow;
+	cq->cqes = cq->ring_ptr + p->cq_off.cqes;
+	if (p->cq_off.flags)
+		cq->kflags = cq->ring_ptr + p->cq_off.flags;
 }
 
 static int io_uring_mmap(int fd, struct io_uring_params *p,
@@ -48,14 +69,6 @@ static int io_uring_mmap(int fd, struct io_uring_params *p,
 		}
 	}
 
-	sq->khead = sq->ring_ptr + p->sq_off.head;
-	sq->ktail = sq->ring_ptr + p->sq_off.tail;
-	sq->kring_mask = sq->ring_ptr + p->sq_off.ring_mask;
-	sq->kring_entries = sq->ring_ptr + p->sq_off.ring_entries;
-	sq->kflags = sq->ring_ptr + p->sq_off.flags;
-	sq->kdropped = sq->ring_ptr + p->sq_off.dropped;
-	sq->array = sq->ring_ptr + p->sq_off.array;
-
 	size = p->sq_entries * sizeof(struct io_uring_sqe);
 	sq->sqes = uring_mmap(0, size, PROT_READ | PROT_WRITE,
 			      MAP_SHARED | MAP_POPULATE, fd, IORING_OFF_SQES);
@@ -66,14 +79,7 @@ err:
 		return ret;
 	}
 
-	cq->khead = cq->ring_ptr + p->cq_off.head;
-	cq->ktail = cq->ring_ptr + p->cq_off.tail;
-	cq->kring_mask = cq->ring_ptr + p->cq_off.ring_mask;
-	cq->kring_entries = cq->ring_ptr + p->cq_off.ring_entries;
-	cq->koverflow = cq->ring_ptr + p->cq_off.overflow;
-	cq->cqes = cq->ring_ptr + p->cq_off.cqes;
-	if (p->cq_off.flags)
-		cq->kflags = cq->ring_ptr + p->cq_off.flags;
+	io_uring_setup_ring_pointers(p, sq, cq);
 	return 0;
 }
 
