@@ -342,17 +342,11 @@ void io_uring_queue_exit(struct io_uring *ring)
 	struct io_uring_sq *sq = &ring->sq;
 	struct io_uring_cq *cq = &ring->cq;
 
-	if (!sq->ring_sz) {
-		uring_close(ring->ring_fd);
-		uring_munmap(sq->sqes, huge_page_size);
+	uring_close(ring->ring_fd);
+	if (!(ring->internal_flags & IORING_INT_FLAG_APP_MEM)) {
+		uring_munmap(sq->sqes,
+			*sq->kring_entries * sizeof(struct io_uring_sqe));
 		io_uring_unmap_rings(sq, cq);
-	} else {
-		if (!(ring->internal_flags & IORING_INT_FLAG_APP_MEM)) {
-			uring_munmap(sq->sqes,
-				*sq->kring_entries * sizeof(struct io_uring_sqe));
-			io_uring_unmap_rings(sq, cq);
-		}
-		uring_close(ring->ring_fd);
 	}
 }
 
