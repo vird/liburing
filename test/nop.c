@@ -20,16 +20,13 @@ static int test_single_nop(struct io_uring *ring)
 	struct io_uring_sqe *sqe;
 	int ret;
 
-	if (ring->flags & IORING_SETUP_SQE128)
-		sqe = (struct io_uring_sqe *) io_uring_get_sqe128(ring);
-	else
-		sqe = io_uring_get_sqe(ring);
+	sqe = io_uring_get_sqe(ring);
 	if (!sqe) {
 		fprintf(stderr, "get sqe failed\n");
 		goto err;
 	}
 
-	io_uring_prep_nop((struct io_uring_sqe *)sqe);
+	io_uring_prep_nop(sqe);
 	sqe->user_data = ++seq;
 
 	ret = io_uring_submit(ring);
@@ -60,16 +57,13 @@ static int test_barrier_nop(struct io_uring *ring)
 	int ret, i;
 
 	for (i = 0; i < 8; i++) {
-		if (ring->flags & IORING_SETUP_SQE128)
-			sqe = (struct io_uring_sqe *) io_uring_get_sqe128(ring);
-		else
-			sqe = io_uring_get_sqe(ring);
+		sqe = io_uring_get_sqe(ring);
 		if (!sqe) {
 			fprintf(stderr, "get sqe failed\n");
 			goto err;
 		}
 
-		io_uring_prep_nop((struct io_uring_sqe *)sqe);
+		io_uring_prep_nop(sqe);
 		if (i == 4)
 			sqe->flags = IOSQE_IO_DRAIN;
 		sqe->user_data = ++seq;

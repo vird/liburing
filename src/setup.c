@@ -56,11 +56,10 @@ static int io_uring_mmap(int fd, struct io_uring_params *p,
 	sq->kdropped = sq->ring_ptr + p->sq_off.dropped;
 	sq->array = sq->ring_ptr + p->sq_off.array;
 
+	size = sizeof(struct io_uring_sqe);
 	if (p->flags & IORING_SETUP_SQE128)
-		size = p->sq_entries * sizeof(struct io_uring_sqe128);
-	else
-		size = p->sq_entries * sizeof(struct io_uring_sqe);
-	sq->sqes = __sys_mmap(0, size, PROT_READ | PROT_WRITE,
+		size += 64;
+	sq->sqes = __sys_mmap(0, size * p->sq_entries, PROT_READ | PROT_WRITE,
 			      MAP_SHARED | MAP_POPULATE, fd, IORING_OFF_SQES);
 	if (IS_ERR(sq->sqes)) {
 		ret = PTR_ERR(sq->sqes);
@@ -111,10 +110,10 @@ int io_uring_ring_dontfork(struct io_uring *ring)
 	if (!ring->sq.ring_ptr || !ring->sq.sqes || !ring->cq.ring_ptr)
 		return -EINVAL;
 
+	len = sizeof(struct io_uring_sqe);
 	if (ring->flags & IORING_SETUP_SQE128)
-		len = *ring->sq.kring_entries * sizeof(struct io_uring_sqe128);
-	else
-		len = *ring->sq.kring_entries * sizeof(struct io_uring_sqe);
+		len += 64;
+	len *= *ring->sq.kring_entries;
 	ret = __sys_madvise(ring->sq.sqes, len, MADV_DONTFORK);
 	if (ret < 0)
 		return ret;
@@ -173,12 +172,10 @@ void io_uring_queue_exit(struct io_uring *ring)
 	struct io_uring_cq *cq = &ring->cq;
 	size_t sqe_size;
 
+	sqe_size = sizeof(struct io_uring_sqe);
 	if (ring->flags & IORING_SETUP_SQE128)
-		sqe_size = *sq->kring_entries * sizeof(struct io_uring_sqe128);
-	else
-		sqe_size = *sq->kring_entries * sizeof(struct io_uring_sqe);
-
-	__sys_munmap(sq->sqes, sqe_size);
+		sqe_size += 64;
+	__sys_munmap(sq->sqes, sqe_size * *sq->kring_entries);
 	io_uring_unmap_rings(sq, cq);
 	__sys_close(ring->ring_fd);
 }
@@ -254,10 +251,10 @@ static size_t rings_size(struct io_uring_params *p, unsigned entries,
 	cq_size = (cq_size + 63) & ~63UL;
 	pages = (size_t) 1 << npages(cq_size, page_size);
 
+	sq_size = sizeof(struct io_uring_sqe);
 	if (p->flags & IORING_SETUP_SQE128)
-		sq_size = sizeof(struct io_uring_sqe128) * entries;
-	else
-		sq_size = sizeof(struct io_uring_sqe) * entries;
+		sq_size += 64;
+	sq_size *= entries;
 	pages += (size_t) 1 << npages(sq_size, page_size);
 	return pages * page_size;
 }

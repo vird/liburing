@@ -824,21 +824,6 @@ static inline int io_uring_wait_cqe(struct io_uring *ring,
 	return io_uring_wait_cqe_nr(ring, cqe_ptr, 1);
 }
 
-static inline struct io_uring_sqe *__io_uring_get_sqe(struct io_uring *ring,
-						      int shift)
-{
-	struct io_uring_sq *sq = &ring->sq;
-	unsigned int head = io_uring_smp_load_acquire(sq->khead);
-	unsigned int next = sq->sqe_tail + 1;
-	struct io_uring_sqe *sqe = NULL;
-
-	if (next - head <= *sq->kring_entries) {
-		sqe = &sq->sqes[(sq->sqe_tail & *sq->kring_mask) << shift];
-		sq->sqe_tail = next;
-	}
-	return sqe;
-}
-
 /*
  * Return an sqe to fill. Application must later call io_uring_submit()
  * when it's ready to tell the kernel about it. The caller may call this
@@ -848,23 +833,23 @@ static inline struct io_uring_sqe *__io_uring_get_sqe(struct io_uring *ring,
  */
 static inline struct io_uring_sqe *io_uring_get_sqe(struct io_uring *ring)
 {
+	struct io_uring_sq *sq = &ring->sq;
+	unsigned int head = io_uring_smp_load_acquire(sq->khead);
+	unsigned int next = sq->sqe_tail + 1;
+	int shift = 0;
+
 	if (ring->flags & IORING_SETUP_SQE128)
-		return NULL;
+		shift = 1;
 
-	return __io_uring_get_sqe(ring, 0);
-}
+	if (next - head <= *sq->kring_entries) {
+		struct io_uring_sqe *sqe;
 
-/*
- * Same as io_uring_get_sqe(), but must be used on rings setup with the
- * IORING_SETUP_SQE128 flag, indicating that SQE entries on this ring are
- * 128-bytes in size.
- */
-static inline struct io_uring_sqe128 *io_uring_get_sqe128(struct io_uring *ring)
-{
-	if (!(ring->flags & IORING_SETUP_SQE128))
-		return NULL;
+		sqe = &sq->sqes[(sq->sqe_tail & *sq->kring_mask) << shift];
+		sq->sqe_tail = next;
+		return sqe;
+	}
 
-	return (struct io_uring_sqe128 *) __io_uring_get_sqe(ring, 1);
+	return NULL;
 }
 
 ssize_t io_uring_mlock_size(unsigned entries, unsigned flags);
